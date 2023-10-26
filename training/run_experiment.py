@@ -1,7 +1,8 @@
 import argparse
 import importlib
-import pytorch_lightning as pl
-from pytorch_lightning import callbacks as callbacks
+import lightning.pytorch as pl
+from lightning.pytorch import callbacks as callbacks
+
 
 from training.utils import (
     DATA_CLASS_MODULE,
@@ -72,6 +73,12 @@ def _setup_parser():
     
     experiment_args = parser.add_argument_group("Experiment Args")
     experiment_args.add_argument(
+        "--name",
+        type=str,
+        default=None,
+        help="Name of Experiment for wandb"
+    )
+    experiment_args.add_argument(
         "--wandb",
         action="store_true"
     )
@@ -132,8 +139,13 @@ def main():
         mode=args.mode,
         patience=args.patience
     )
+
+    if args.wandb:
+        logger = pl.loggers.WandbLogger(name=args.name, project='binary_scanner')
+    else:
+        logger = pl.loggers.TensorBoardLogger()
     
-    trainer = pl.Trainer(**from_argparse_args(pl.Trainer, args), callbacks=[checkpoint_callback, early_stopping_callback])
+    trainer = pl.Trainer(**from_argparse_args(pl.Trainer, args), callbacks=[checkpoint_callback, early_stopping_callback], logger=logger)
     trainer.fit(lit_model, datamodule=data)
 
 if __name__ == "__main__":

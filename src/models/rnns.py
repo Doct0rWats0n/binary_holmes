@@ -34,7 +34,7 @@ class BLSTM(nn.Module):
         self.embed = nn.Embedding(input_dim, EMBED_DIM)
         self.bilstm = nn.LSTM(EMBED_DIM, LSTM_DIM, num_layers=LSTM_NUM_LAYERS, batch_first=True, bidirectional=BIDIR)
         self.bilstm2 = nn.LSTM(LSTM_DIM, 1, num_layers=LSTM_NUM_LAYERS, batch_first=True, bidirectional=BIDIR)
-        self.fc1 = nn.Linear(seq_len * (2 if BIDIR else 1), FC_DIM)
+        self.fc1 = nn.Linear(LSTM_DIM * seq_len * (2 if BIDIR else 1), FC_DIM)
         # self.drop1 = nn.Dropout(FC_DROPOUT)
         self.fc2 = nn.Linear(FC_DIM, FC_DIM)
         # self.drop2 = nn.Dropout(FC_DROPOUT)

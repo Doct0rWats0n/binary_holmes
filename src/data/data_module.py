@@ -2,7 +2,7 @@ import argparse
 import torch
 from torch.utils.data import DataLoader, Dataset, ConcatDataset
 from typing import Sequence, Tuple, Union, Optional
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from pathlib import Path
 
 

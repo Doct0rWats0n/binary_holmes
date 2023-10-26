@@ -28,7 +28,9 @@ class BaseDataModule(pl.LightningDataModule):
 
     @classmethod
     def data_dirname(cls, split: str = None):
-        return Path(__file__).resolve().parents[2] / "data" / cls.__name__ / split if split is not None else ""
+        if split is None:
+            split = ""
+        return Path(__file__).resolve().parents[2] / "data" / cls.__name__ / split
 
     @staticmethod
     def add_to_argparse(parser: argparse.Namespace) -> argparse.Namespace:

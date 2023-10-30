@@ -28,20 +28,26 @@ class BLSTM(nn.Module):
         input_dim = self.data_config["vocab_size"]
         seq_len = self.data_config["seq_len"]
         num_classes = len(self.data_config["mapping"])
+        e_dim = self.args.get("embed")
+        lstm_dim = self.args.get("lstm")
+        n_lstms = self.args.get("n_lstm")
+        fc_dim = self.args.get("fc")
+        dc_dropout_dim = self.args.get("fc_dropout")
+        self.leaky = self.args.get("leaky")
 
 
-        self.embed = nn.Embedding(input_dim, EMBED_DIM)
-        self.rnn = nn.LSTM(EMBED_DIM, LSTM_DIM, num_layers=LSTM_NUM_LAYERS, batch_first=True, bidirectional=True)
-        self.drop1 = nn.Dropout(FC_DROPOUT)
-        self.fc1 = nn.Linear(LSTM_DIM * 2, FC_DIM)
-        self.fc2 = nn.Linear(FC_DIM, num_classes)
+        self.embed = nn.Embedding(input_dim, e_dim)
+        self.rnn = nn.LSTM(e_dim, lstm_dim, num_layers=n_lstms, batch_first=True, bidirectional=True)
+        self.drop1 = nn.Dropout(dc_dropout_dim)
+        self.fc1 = nn.Linear(lstm_dim * 2, fc_dim)
+        self.fc2 = nn.Linear(fc_dim, num_classes)
 
-        self.h = [torch.zeros(LSTM_NUM_LAYERS, self.args["batch_size"], LSTM_DIM).cuda() for _ in range(2)]
+        self.h = [torch.zeros(n_lstms, self.args["batch_size"], lstm_dim).cuda() for _ in range(2)]
     
     def forward_words(self, x):
         raw, h = self.rnn(self.embed(x), self.h)
         dropped = self.drop1(raw)
-        x = F.leaky_relu(self.fc1(dropped), LEAKY_COEF)
+        x = F.leaky_relu(self.fc1(dropped), self.leaky)
         x = self.fc2(x)
         self.h = [h_.detach() for h_ in h]
         return x, raw, dropped
@@ -50,7 +56,7 @@ class BLSTM(nn.Module):
         raw, (hs, hc) = self.rnn(self.embed(x))
         x = torch.cat((hs[-2,:,:], hs[-1,:,:]), dim = 1)
         dropped = self.drop1(x)
-        x = F.leaky_relu(self.fc1(dropped), LEAKY_COEF)
+        x = F.leaky_relu(self.fc1(dropped), self.leaky)
         x = self.fc2(x)
         return x
 
@@ -59,8 +65,9 @@ class BLSTM(nn.Module):
 
     @staticmethod
     def add_to_argparse(parser):
-        parser.add_argument("--edim", type=int, default=EMBED_DIM)
+        parser.add_argument("--embed", type=int, default=EMBED_DIM)
         parser.add_argument("--lstm", type=int, default=LSTM_DIM)
+        parser.add_argument("--n_lstm", type=int, default=LSTM_NUM_LAYERS)
         parser.add_argument("--fc", type=int, default=FC_DIM)
         parser.add_argument("--fc_dropout", type=float, default=FC_DROPOUT)
         parser.add_argument("--leaky", type=float, default=LEAKY_COEF)

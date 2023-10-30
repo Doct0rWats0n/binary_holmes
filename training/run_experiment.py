@@ -20,13 +20,13 @@ def _setup_parser():
     parser = argparse.ArgumentParser(add_help=False)
 
     parser.add_argument(
-        "--data_class",
+        "--data",
         type=str,
         default="MNIST",
         help=f"String identifier for the data class, relative to {DATA_CLASS_MODULE}.",
     )
     parser.add_argument(
-        "--model_class",
+        "--model",
         type=str,
         default="MLP",
         help=f"String identifier for the model class, relative to {MODEL_CLASS_MODULE}.",
@@ -99,8 +99,8 @@ def _setup_parser():
     )
 
     temp_args, _ = parser.parse_known_args()
-    data_class = import_class(f"{DATA_CLASS_MODULE}.{temp_args.data_class}")
-    model_class = import_class(f"{MODEL_CLASS_MODULE}.{temp_args.model_class}")
+    data_class = import_class(f"{DATA_CLASS_MODULE}.{temp_args.data}")
+    model_class = import_class(f"{MODEL_CLASS_MODULE}.{temp_args.model}")
     lit_model_class = import_class(f"{LIT_MODEL_CLASS_MODULE}.{temp_args.lit_model_class}")
 
     data_group = parser.add_argument_group("Data Args")
@@ -143,7 +143,7 @@ def main():
     if args.wandb:
         logger = pl.loggers.WandbLogger(name=args.name, project='binary_scanner')
     else:
-        logger = pl.loggers.TensorBoardLogger()
+        logger = pl.loggers.TensorBoardLogger(save_dir="./lightning_logs")
     
     trainer = pl.Trainer(**from_argparse_args(pl.Trainer, args), callbacks=[checkpoint_callback, early_stopping_callback], logger=logger)
     trainer.fit(lit_model, datamodule=data)

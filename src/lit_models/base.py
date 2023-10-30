@@ -64,7 +64,7 @@ class BaseLitModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y, logits, loss = self._run_on_batch(batch)
-        self.train_acc(logits, y)
+        self.train_acc(logits, y.argmax(dim=1))
 
         self.log("train/loss", loss)
         self.log("train/acc", self.train_acc, on_step=False, on_epoch=True)
@@ -77,13 +77,15 @@ class BaseLitModel(pl.LightningModule):
     def _run_on_batch(self, batch, with_preds=False):
         x, y = batch
         logits = self(x)
+        if isinstance(logits, tuple):
+            logits = logits[0]
         loss = self.loss_fn(logits, y)
 
         return x, y, logits, loss
 
     def validation_step(self, batch, batch_idx):
         x, y, logits, loss = self._run_on_batch(batch)
-        self.val_acc(logits, y)
+        self.val_acc(logits, y.argmax(dim=1))
 
         self.log("validation/loss", loss, prog_bar=True, sync_dist=True)
         self.log("validation/acc", self.val_acc, on_step=False, on_epoch=True, prog_bar=True)
@@ -95,7 +97,7 @@ class BaseLitModel(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         x, y, logits, loss = self._run_on_batch(batch)
-        self.test_acc(logits, y)
+        self.test_acc(logits, y.argmax(dim=1))
 
         self.log("test/loss", loss, on_step=False, on_epoch=True)
         self.log("test/acc", self.test_acc, on_step=False, on_epoch=True)

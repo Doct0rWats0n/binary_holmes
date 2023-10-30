@@ -11,8 +11,7 @@ LSTM_DIM = 64
 FC_DIM = 32
 FC_DROPOUT = 0.5
 LEAKY_COEF = 0.3
-LSTM_NUM_LAYERS = 10
-BIDIR = False
+LSTM_NUM_LAYERS = 1
 
 class BLSTM(nn.Module):
     """Quick port of [BLSTM](https://github.com/johnb110/VDPython/blob/master/blstm.py)"""
@@ -32,26 +31,31 @@ class BLSTM(nn.Module):
 
 
         self.embed = nn.Embedding(input_dim, EMBED_DIM)
-        self.bilstm = nn.LSTM(EMBED_DIM, LSTM_DIM, num_layers=LSTM_NUM_LAYERS, batch_first=True, bidirectional=BIDIR)
-        self.bilstm2 = nn.LSTM(LSTM_DIM, 1, num_layers=LSTM_NUM_LAYERS, batch_first=True, bidirectional=BIDIR)
-        self.fc1 = nn.Linear(LSTM_DIM * seq_len * (2 if BIDIR else 1), FC_DIM)
-        # self.drop1 = nn.Dropout(FC_DROPOUT)
-        self.fc2 = nn.Linear(FC_DIM, FC_DIM)
-        # self.drop2 = nn.Dropout(FC_DROPOUT)
-        self.fc3 = nn.Linear(FC_DIM, num_classes)
+        self.rnn = nn.LSTM(EMBED_DIM, LSTM_DIM, num_layers=LSTM_NUM_LAYERS, batch_first=True, bidirectional=True)
+        self.drop1 = nn.Dropout(FC_DROPOUT)
+        self.fc1 = nn.Linear(LSTM_DIM * 2, FC_DIM)
+        self.fc2 = nn.Linear(FC_DIM, num_classes)
+
+        self.h = [torch.zeros(LSTM_NUM_LAYERS, self.args["batch_size"], LSTM_DIM).cuda() for _ in range(2)]
     
-    def forward(self, x):
-        x = self.embed(x)
-        x, (hs, hc) = self.bilstm(x)
-        # x, (hs, hc) = self.bilstm2(x, (hs, hc))
-        # x = torch.cat((hs[-2, :, :], hs[-1, :, :]), dim=1)
-        x = x.reshape(x.shape[0], -1)
-        x = F.leaky_relu(self.fc1(x), LEAKY_COEF)
-        # x = self.drop1(x)
-        x = F.leaky_relu(self.fc2(x), LEAKY_COEF)
-        # x = self.drop2(x)
-        x = self.fc3(x)
+    def forward_words(self, x):
+        raw, h = self.rnn(self.embed(x), self.h)
+        dropped = self.drop1(raw)
+        x = F.leaky_relu(self.fc1(dropped), LEAKY_COEF)
+        x = self.fc2(x)
+        self.h = [h_.detach() for h_ in h]
+        return x, raw, dropped
+    
+    def forward_cat(self, x):
+        raw, (hs, hc) = self.rnn(self.embed(x))
+        x = torch.cat((hs[-2,:,:], hs[-1,:,:]), dim = 1)
+        dropped = self.drop1(x)
+        x = F.leaky_relu(self.fc1(dropped), LEAKY_COEF)
+        x = self.fc2(x)
         return x
+
+    def forward(self, x):
+        return self.forward_cat(x)
 
     @staticmethod
     def add_to_argparse(parser):

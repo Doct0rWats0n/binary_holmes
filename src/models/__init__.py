@@ -1,2 +1,2 @@
 from .mlp import MLP
-from .rnns import BLSTM
+from .rnns import GRU

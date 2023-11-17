@@ -75,4 +75,5 @@ class BaseDataModule(pl.LightningDataModule):
         )
 
     def config(self):
-        return {"input_dims": self.input_dims, "output_dims": self.output_dims, "mapping": self.mapping}
+        return {"input_dims": self.input_dims, "output_dims": self.output_dims, "mapping": self.mapping,
+                "batch_size": self.batch_size}

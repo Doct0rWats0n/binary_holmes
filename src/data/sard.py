@@ -108,6 +108,7 @@ class SARD(BaseDataModule):
         d["vocab_size"] = len(SARDataset.get_vocab(self.raw_dir)) + 1
         d["seq_len"] = MAX_LENGTH
         return d
-    
+
+
 if __name__ == "__main__":
     ...

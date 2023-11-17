@@ -53,7 +53,7 @@ class BaseLitModel(pl.LightningModule):
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer=optimizer, max_lr=self.one_cycle_max_lr, total_steps=self.one_cycle_total_steps
         )
-        return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "validation/loss"}
+        return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "validation_loss"}
 
     def forward(self, x):
         return self.model(x)
@@ -65,9 +65,10 @@ class BaseLitModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y, logits, loss = self._run_on_batch(batch)
         self.train_acc(logits, y.argmax(dim=1))
+        # self.val_acc(y, torch.nn.functional.softmax(logits, dim=1).argmax(dim=1))
 
-        self.log("train/loss", loss)
-        self.log("train/acc", self.train_acc, on_step=False, on_epoch=True)
+        self.log("train_loss", loss)
+        self.log("train_acc", self.train_acc, on_step=False, on_epoch=True)
 
         outputs = {"loss": loss}
         self.add_on_first_batch({"logits": logits.detach()}, outputs, batch_idx)
@@ -85,10 +86,14 @@ class BaseLitModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, y, logits, loss = self._run_on_batch(batch)
+        #print(y, "\n", logits,  "\n" * 10)
+        # self.val_acc(torch.nn.functional.softmax(logits, dim=1).argmax(dim=0), y.argmax(dim=0))
+        #print(torch.nn.functional.softmax(logits, dim=1).shape)
+        # self.val_acc(y, torch.nn.functional.softmax(logits, dim=1).argmax(dim=1))
         self.val_acc(logits, y.argmax(dim=1))
 
-        self.log("validation/loss", loss, prog_bar=True, sync_dist=True)
-        self.log("validation/acc", self.val_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("validation_loss", loss, prog_bar=True, sync_dist=True)
+        self.log("validation_acc", self.val_acc, on_step=False, on_epoch=True, prog_bar=True)
 
         outputs = {"loss": loss}
         self.add_on_first_batch({"logits": logits.detach()}, outputs, batch_idx)
@@ -99,8 +104,8 @@ class BaseLitModel(pl.LightningModule):
         x, y, logits, loss = self._run_on_batch(batch)
         self.test_acc(logits, y.argmax(dim=1))
 
-        self.log("test/loss", loss, on_step=False, on_epoch=True)
-        self.log("test/acc", self.test_acc, on_step=False, on_epoch=True)
+        self.log("test_loss", loss, on_step=False, on_epoch=True)
+        self.log("test_acc", self.test_acc, on_step=False, on_epoch=True)
 
     def add_on_first_batch(self, metrics, outputs, batch_idx):
         if batch_idx == 0:

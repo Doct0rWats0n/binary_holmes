@@ -16,19 +16,20 @@ from training.utils import (
 import warnings
 warnings.filterwarnings("ignore")
 
+
 def _setup_parser():
     parser = argparse.ArgumentParser(add_help=False)
 
     parser.add_argument(
         "--data",
         type=str,
-        default="MNIST",
+        default="SARD",
         help=f"String identifier for the data class, relative to {DATA_CLASS_MODULE}.",
     )
     parser.add_argument(
         "--model",
         type=str,
-        default="MLP",
+        default="GRU",
         help=f"String identifier for the model class, relative to {MODEL_CLASS_MODULE}.",
     )
 
@@ -85,7 +86,7 @@ def _setup_parser():
     experiment_args.add_argument(
         "--monitor",
         type=str,
-        default="validation/loss"
+        default="validation_loss"
     )
     experiment_args.add_argument(
         "--mode",
@@ -128,8 +129,8 @@ def main():
         lit_model = lit_model_class(model=model, args=args)
 
     checkpoint_callback = callbacks.ModelCheckpoint(
-        save_top_k=3,
-        filename="epoch={epoch:04d}-validation.loss={validation/loss:.3f}",
+        # save_top_k=3,
+        filename="{epoch:04d}-{validation_loss:.3f}",
         monitor=args.monitor,
         mode=args.mode,
     )
@@ -147,6 +148,7 @@ def main():
     
     trainer = pl.Trainer(**from_argparse_args(pl.Trainer, args), callbacks=[checkpoint_callback, early_stopping_callback], logger=logger)
     trainer.fit(lit_model, datamodule=data)
+
 
 if __name__ == "__main__":
     main()

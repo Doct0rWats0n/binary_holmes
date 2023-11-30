@@ -1,5 +1,5 @@
 import argparse
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Tuple
 
 import os
 import os.path as osp
@@ -12,14 +12,18 @@ from torch.utils.data import Dataset
 import torchtext.transforms as T
 from torchtext.data.utils import ngrams_iterator
 
+from .chunker import TextDataset
+
 from src.data.data_module import BaseDataModule
 from training.run_experiment import DATA_CLASS_MODULE, import_class
 
 MAX_LENGTH = 1000
 
+
 def to_categorical(y, num_classes):
     """ 1-hot encodes a tensor """
     return torch.eye(num_classes)[y]
+
 
 class SARDataset(Dataset):
     def __init__(self, raw_dir, max_length: int = MAX_LENGTH) -> None:
@@ -49,28 +53,26 @@ class SARDataset(Dataset):
             T.LabelToIndex(self.reverse_mapping.keys())
         )
 
-    
     def __len__(self):
         return len(self.data)
-    
 
     def __getitem__(self, index):
         x = self.transforms(self.data[index])
         y = self.label_transforms(self.labels[index])
         y = to_categorical(y, len(self.mapping))
         return x, y
-        
+
     @staticmethod
-    def get_mappings(raw_dir) -> Union[Dict, Dict]:
+    def get_mappings(raw_dir) -> tuple[dict, dict]:
         classes = []
         for cwe_folder in os.listdir(raw_dir):
             CWE_NAME = cwe_folder.split("_")[0]
             if CWE_NAME not in classes:
                 classes.append(CWE_NAME)
-        m =  {i : x for i, x in enumerate(classes)}
+        m = {i: x for i, x in enumerate(classes)}
         rm = {v: k for k, v in m.items()}
         return m, rm
-    
+
     @staticmethod
     def get_vocab(raw_dir) -> Vocab:
         tokenized_data = []
@@ -89,8 +91,8 @@ class SARD(BaseDataModule):
         self.mapping, self.reverse_mapping = SARDataset.get_mappings(self.raw_dir)
         self.input_dims = [MAX_LENGTH, ]
         self.output_dims = [len(self.mapping)]
-    
-    def _naive_name_parsing(self, name) -> List:
+
+    def _naive_name_parsing(self, name) -> Tuple[List, List]:
         return [], []
 
     def prepare_data(self, *args, **kwargs) -> None:
@@ -98,11 +100,19 @@ class SARD(BaseDataModule):
         self.dataset = SARDataset(self.raw_dir, max_length=MAX_LENGTH)
         self.vocab_size = len(self.dataset.vocab)
 
+    @staticmethod
+    def chunk_data(data: List[List], chunk_size=100, chunk_overlap=50):
+        chunked_data = []
+        for file in data:
+            dataset = TextDataset(file, chunk_size, chunk_overlap)
+            chunked_data.append(dataset.get_chunks())
+        return chunked_data
+
     def setup(self, stage=None) -> None:
         train_size = int(len(self.dataset) * 0.8)
         self.data_train, self.data_val = random_split(self.dataset, (train_size, len(self.dataset) - train_size))
         self.data_test = None
-    
+
     def config(self):
         d = super().config()
         d["vocab_size"] = len(SARDataset.get_vocab(self.raw_dir)) + 1

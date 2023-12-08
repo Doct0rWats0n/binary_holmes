@@ -116,6 +116,7 @@ def _setup_parser():
     parser.add_argument("--help", "-h", action="help")
     return parser
 
+
 def main():
     parser = _setup_parser()
     args = parser.parse_args()
@@ -146,7 +147,8 @@ def main():
     else:
         logger = pl.loggers.TensorBoardLogger(save_dir="./lightning_logs")
     
-    trainer = pl.Trainer(**from_argparse_args(pl.Trainer, args), callbacks=[checkpoint_callback, early_stopping_callback], logger=logger)
+    trainer = pl.Trainer(**from_argparse_args(pl.Trainer, args), callbacks=[checkpoint_callback, early_stopping_callback],
+                         logger=logger, accumulate_grad_batches=True)
     trainer.fit(lit_model, datamodule=data)
 
 

@@ -9,7 +9,7 @@ from pathlib import Path
 SequenceOrTensor = Union[Sequence, torch.Tensor]
 
 BATCH_SIZE = 8
-NUM_WORKERS = 4
+NUM_WORKERS = 1
 
 
 class BaseDataModule(pl.LightningDataModule):

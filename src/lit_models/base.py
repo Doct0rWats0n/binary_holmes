@@ -55,8 +55,8 @@ class BaseLitModel(pl.LightningModule):
         )
         return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "validation_loss"}
 
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, x, l):
+        return self.model(x, l)
 
     def predict(self, x):
         logits = self.model(x)
@@ -64,7 +64,7 @@ class BaseLitModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y, logits, loss = self._run_on_batch(batch)
-        self.train_acc(logits, y.argmax(dim=1))
+        self.train_acc(logits, y)
         # self.val_acc(y, torch.nn.functional.softmax(logits, dim=1).argmax(dim=1))
 
         self.log("train_loss", loss)
@@ -76,8 +76,9 @@ class BaseLitModel(pl.LightningModule):
         return outputs
 
     def _run_on_batch(self, batch, with_preds=False):
-        x, y = batch
-        logits = self(x)
+        x, l, y = batch
+        # print("\n" * 100, x.shape, "\n" * 100)
+        logits = self(x, l)
         if isinstance(logits, tuple):
             logits = logits[0]
         loss = self.loss_fn(logits, y)
@@ -90,7 +91,8 @@ class BaseLitModel(pl.LightningModule):
         # self.val_acc(torch.nn.functional.softmax(logits, dim=1).argmax(dim=0), y.argmax(dim=0))
         #print(torch.nn.functional.softmax(logits, dim=1).shape)
         # self.val_acc(y, torch.nn.functional.softmax(logits, dim=1).argmax(dim=1))
-        self.val_acc(logits, y.argmax(dim=1))
+        # print(logits.shape, y.argmax(dim=-1).shape, y.shape)
+        self.val_acc(logits, y)
 
         self.log("validation_loss", loss, prog_bar=True, sync_dist=True)
         self.log("validation_acc", self.val_acc, on_step=False, on_epoch=True, prog_bar=True)

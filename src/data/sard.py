@@ -6,18 +6,20 @@ import os.path as osp
 import json
 
 import torch
-from torch.utils.data import random_split
+import torch.nn as nn
+from torch.utils.data import random_split, DataLoader
 from torchtext.vocab import build_vocab_from_iterator, Vocab
 from torch.utils.data import Dataset
 import torchtext.transforms as T
 from torchtext.data.utils import ngrams_iterator
 
-from .chunker import TextDataset
+from .chunker import Chunker
 
 from src.data.data_module import BaseDataModule
 from training.run_experiment import DATA_CLASS_MODULE, import_class
+from src.models.parameters import CHUNK_SIZE, CHUNK_OVERLAP
 
-MAX_LENGTH = 1000
+MAX_LENGTH = 10000
 
 
 def to_categorical(y, num_classes):
@@ -26,40 +28,48 @@ def to_categorical(y, num_classes):
 
 
 class SARDataset(Dataset):
-    def __init__(self, raw_dir, max_length: int = MAX_LENGTH) -> None:
+    def __init__(self, raw_dir, max_length: int = MAX_LENGTH, chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP) -> None:
         super().__init__()
-        tokenized_data = []
+        data_paths = []
         tokenized_labels = []
         self.raw_dir = raw_dir
         self.mapping, self.reverse_mapping = self.get_mappings(self.raw_dir)
-        for cwe_folder in os.listdir(self.raw_dir):
+
+        for index, cwe_folder in enumerate(os.listdir(self.raw_dir)):
             CWE_NAME = cwe_folder.split("_")[0]
             for file in os.listdir(osp.join(self.raw_dir, cwe_folder)):
-                with open(osp.join(self.raw_dir, cwe_folder, file)) as f:
-                    tokenized_data.append(json.load(f))
-                    tokenized_labels.append(CWE_NAME)
-        self.vocab = build_vocab_from_iterator(tokenized_data, min_freq=1000, special_first=False)
+                data_paths.append(osp.join(self.raw_dir, cwe_folder, file))
+            tokenized_labels.append(CWE_NAME)
+        self.vocab = self.get_vocab(raw_dir)
         self.vocab.set_default_index(len(self.vocab))
-        self.data = tokenized_data
+        self.data_paths = data_paths
         self.labels = tokenized_labels
 
         self.transforms = T.Sequential(
             T.Truncate(max_length),
             T.VocabTransform(self.vocab),
             T.ToTensor(),
-            T.PadTransform(max_length, len(self.vocab))
+            # T.PadTransform(max_length, len(self.vocab))
         )
         self.label_transforms = T.Sequential(
             T.LabelToIndex(self.reverse_mapping.keys())
         )
 
+        self.chunker = Chunker(chunk_size, chunk_overlap)
+
     def __len__(self):
-        return len(self.data)
+        return len(self.data_paths)
 
     def __getitem__(self, index):
-        x = self.transforms(self.data[index])
-        y = self.label_transforms(self.labels[index])
-        y = to_categorical(y, len(self.mapping))
+        with open(self.data_paths[index]) as json_file:
+            tokens = json.load(json_file)
+            tokens_list = [token[0] for token in tokens]
+
+        file_name = osp.split(self.data_paths[index])[1]
+        label = file_name.split('_')[0]
+
+        x = self.transforms(tokens_list)
+        y = self.label_transforms(label)
         return x, y
 
     @staticmethod
@@ -75,12 +85,10 @@ class SARDataset(Dataset):
 
     @staticmethod
     def get_vocab(raw_dir) -> Vocab:
-        tokenized_data = []
-        for cwe_folder in os.listdir(raw_dir):
-            for file in os.listdir(osp.join(raw_dir, cwe_folder)):
-                with open(osp.join(raw_dir, cwe_folder, file)) as f:
-                    tokenized_data.append(json.load(f))
-        return build_vocab_from_iterator(tokenized_data, min_freq=1000)
+        with open(osp.join(raw_dir, '../../stored_vocab.json')) as vocab_file:
+            tokens = json.load(vocab_file)
+            print('vocab_loaded')
+        return build_vocab_from_iterator(tokens)
 
 
 class SARD(BaseDataModule):
@@ -101,12 +109,33 @@ class SARD(BaseDataModule):
         self.vocab_size = len(self.dataset.vocab)
 
     @staticmethod
-    def chunk_data(data: List[List], chunk_size=100, chunk_overlap=50):
-        chunked_data = []
-        for file in data:
-            dataset = TextDataset(file, chunk_size, chunk_overlap)
-            chunked_data.append(dataset.get_chunks())
-        return chunked_data
+    def collate_fn(batch):
+        xs = [b[0] for b in batch]
+        ys = [b[1] for b in batch]
+        ls = [b[0].shape[0] for b in batch]
+        padded = nn.utils.rnn.pad_sequence(xs, batch_first=True, padding_value=0)
+        return padded, ls, torch.tensor(ys)
+
+    def train_dataloader(self, **args) -> DataLoader:
+
+        return DataLoader(
+            self.data_train,
+            collate_fn=self.collate_fn,
+            shuffle=not self.args.get("no_train_shuffle", False),
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            **args
+        )
+
+    def val_dataloader(self, **args) -> DataLoader:
+        return DataLoader(
+            self.data_val,
+            collate_fn=self.collate_fn,
+            shuffle=False,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            **args
+        )
 
     def setup(self, stage=None) -> None:
         train_size = int(len(self.dataset) * 0.8)

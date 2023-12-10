@@ -63,35 +63,26 @@ class BaseLitModel(pl.LightningModule):
         return torch.argmax(logits, dim=1)
 
     def training_step(self, batch, batch_idx):
-        x, y, logits, loss = self._run_on_batch(batch)
+        x, l, y, logits, loss = self._run_on_batch(batch)
         self.train_acc(logits, y)
-        # self.val_acc(y, torch.nn.functional.softmax(logits, dim=1).argmax(dim=1))
-
         self.log("train_loss", loss)
         self.log("train_acc", self.train_acc, on_step=False, on_epoch=True)
 
         outputs = {"loss": loss}
         self.add_on_first_batch({"logits": logits.detach()}, outputs, batch_idx)
-
+        if batch_idx % 10 == 0:
+            self.log("train_seqlen", max(l))
         return outputs
 
     def _run_on_batch(self, batch, with_preds=False):
         x, l, y = batch
         # print("\n" * 100, x.shape, "\n" * 100)
         logits = self(x, l)
-        if isinstance(logits, tuple):
-            logits = logits[0]
         loss = self.loss_fn(logits, y)
-
-        return x, y, logits, loss
+        return x, l, y, logits, loss
 
     def validation_step(self, batch, batch_idx):
-        x, y, logits, loss = self._run_on_batch(batch)
-        #print(y, "\n", logits,  "\n" * 10)
-        # self.val_acc(torch.nn.functional.softmax(logits, dim=1).argmax(dim=0), y.argmax(dim=0))
-        #print(torch.nn.functional.softmax(logits, dim=1).shape)
-        # self.val_acc(y, torch.nn.functional.softmax(logits, dim=1).argmax(dim=1))
-        # print(logits.shape, y.argmax(dim=-1).shape, y.shape)
+        x, _, y, logits, loss = self._run_on_batch(batch)
         self.val_acc(logits, y)
 
         self.log("validation_loss", loss, prog_bar=True, sync_dist=True)

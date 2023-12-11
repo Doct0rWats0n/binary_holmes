@@ -2,6 +2,7 @@ import argparse
 
 import lightning.pytorch as pl
 import torch
+import torch.optim as optim
 from torchmetrics import Accuracy
 
 OPTIMIZER = "Adam"
@@ -47,13 +48,12 @@ class BaseLitModel(pl.LightningModule):
         return parser
 
     def configure_optimizers(self):
-        optimizer = self.optimizer_class(self.parameters(), lr=self.lr)
-        if self.one_cycle_max_lr is None:
-            return optimizer
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer=optimizer, max_lr=self.one_cycle_max_lr, total_steps=self.one_cycle_total_steps
-        )
-        return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "validation_loss"}
+        optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.args["batch_size"], eta_min=self.lr / 10)
+        return {"optimizer": optimizer, "lr_scheduler": {
+            "scheduler": scheduler,
+            "interval": "epoch",
+        }}
 
     def forward(self, x, l):
         return self.model(x, l)

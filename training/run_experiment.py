@@ -142,12 +142,16 @@ def main():
         patience=args.patience
     )
 
+    lr_tracker = pl.callbacks.LearningRateMonitor(
+        logging_interval="epoch"
+    )
+
     if args.wandb:
         logger = pl.loggers.WandbLogger(name=args.name, project='binary_scanner', entity="6zalup")
     else:
         logger = pl.loggers.TensorBoardLogger(save_dir=".")
     
-    trainer = pl.Trainer(**from_argparse_args(pl.Trainer, args), callbacks=[checkpoint_callback, early_stopping_callback],
+    trainer = pl.Trainer(**from_argparse_args(pl.Trainer, args), callbacks=[checkpoint_callback, early_stopping_callback, lr_tracker],
                          logger=logger, accumulate_grad_batches=True, log_every_n_steps=10)
     trainer.fit(lit_model, datamodule=data)
 
